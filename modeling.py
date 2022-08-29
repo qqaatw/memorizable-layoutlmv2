@@ -1078,8 +1078,8 @@ class MemorizableLayoutLMv2Model(LayoutLMv2PreTrainedModel):
         else:
             memory_attention_mask = torch.triu(text_layout_emb.new_ones((qlen, klen), dtype=torch.uint8), diagonal=1 + mlen)
 
-        # mask visual positions
-        final_attention_mask = torch.nn.functional.pad(memory_attention_mask, (0, visual_shape[1], 0, visual_shape[1],), value=1)
+        # do not mask visual positions
+        final_attention_mask = torch.nn.functional.pad(memory_attention_mask, (0, visual_shape[1], 0, visual_shape[1],), value=0)
 
         mem_pos_seq = torch.arange(final_attention_mask.size(1) - 1, -1, -1.0, device=text_layout_emb.device, dtype=text_layout_emb.dtype)
         if self.clamp_len > 0:

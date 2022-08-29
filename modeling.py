@@ -225,7 +225,7 @@ class LayoutLMv2RelPartialLearnableMultiHeadAttn(nn.Module):
         rel_pos=None,
         rel_2d_pos=None,
     ):
-        qlen, rlen, bsz = hidden_states.size(1), mem_pos_embedding.size(0), hidden_states.size(1)
+        qlen, rlen, bsz = hidden_states.size(1), mem_pos_embedding.size(0), hidden_states.size(0)
         mlen = 0
         vlen = 49
         if mems is not None:
@@ -285,9 +285,6 @@ class LayoutLMv2RelPartialLearnableMultiHeadAttn(nn.Module):
         if head_mask is not None:
             attention_probs = attention_probs * head_mask
 
-        #context_layer = torch.matmul(attention_probs, value_layer.permute(0, 2, 1, 3))
-        #context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
-        
         context_layer = torch.einsum("bnij,bjnd->bind", attention_probs, value_layer).contiguous()
         
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
@@ -1080,14 +1077,9 @@ class MemorizableLayoutLMv2Model(LayoutLMv2PreTrainedModel):
             memory_attention_mask = (torch.triu(all_ones, 1 + mlen) + torch.tril(all_ones, -mask_shift_len)) # -1
         else:
             memory_attention_mask = torch.triu(text_layout_emb.new_ones((qlen, klen), dtype=torch.uint8), diagonal=1 + mlen)
-        #
-        #if attention_mask is None:
-        #    attention_mask = torch.ones(input_shape, device=device)
 
-        visual_attention_mask_q = torch.ones(visual_shape[1], *memory_attention_mask.shape[1:], device=device)
-        final_attention_mask = torch.cat([memory_attention_mask, visual_attention_mask_q], dim=0)
-        visual_attention_mask_k = torch.ones(final_attention_mask.size(0), visual_shape[1], *memory_attention_mask.shape[2:], device=device)
-        final_attention_mask = torch.cat([final_attention_mask, visual_attention_mask_k], dim=1)
+        # mask visual positions
+        final_attention_mask = torch.nn.functional.pad(memory_attention_mask, (0, visual_shape[1], 0, visual_shape[1],), value=1)
 
         mem_pos_seq = torch.arange(final_attention_mask.size(1) - 1, -1, -1.0, device=text_layout_emb.device, dtype=text_layout_emb.dtype)
         if self.clamp_len > 0:

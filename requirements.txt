@@ -1,0 +1,4 @@
+datasets
+detectron2
+Pillow
+transformers
